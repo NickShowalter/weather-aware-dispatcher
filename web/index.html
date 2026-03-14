@@ -3,108 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather-Aware Dispatcher — 3D Simulator</title>
+    <title>Cenith Innovations — Weather-Aware Dispatcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div id="app">
-        <!-- Control Panel (Left Sidebar) -->
+        <!-- Left Panel: Mission Configuration -->
         <div id="control-panel">
-            <h1>Mission Control</h1>
+            <div class="brand-header">
+                <img src="images/cenith-logo.png" alt="Cenith Innovations" class="brand-logo">
+                <div class="brand-title">Weather-Aware Dispatcher</div>
+            </div>
 
             <!-- Presets -->
             <section class="panel-section">
-                <h2>Presets</h2>
-                <select id="preset-select">
-                    <option value="sample">Default Sample</option>
-                    <option value="stress_low_battery">Stress: Low Battery (40)</option>
-                    <option value="stress_heavy_wind">Stress: Heavy Wind (4x)</option>
-                    <option value="edge_small_grid">Edge: Small Grid (5x5)</option>
-                    <option value="edge_no_wind">Edge: No Wind Penalty</option>
-                </select>
-                <button id="load-preset-btn" class="btn btn-secondary">Load Preset</button>
+                <h2>Scenario Presets</h2>
+                <div class="preset-row">
+                    <select id="preset-select">
+                        <option value="sample">Default Sample</option>
+                        <option value="stress_low_battery">Stress: Low Battery (40)</option>
+                        <option value="stress_heavy_wind">Stress: Heavy Wind (4x)</option>
+                        <option value="edge_small_grid">Edge: Small Grid (5x5)</option>
+                        <option value="edge_no_wind">Edge: No Wind Penalty</option>
+                    </select>
+                    <button id="load-preset-btn" class="btn btn-secondary">Load</button>
+                </div>
             </section>
 
             <!-- Grid Config -->
             <section class="panel-section">
-                <h2>Grid</h2>
-                <div class="input-row">
-                    <label>Width</label>
-                    <input type="number" id="grid-width" value="20" min="3" max="50">
-                </div>
-                <div class="input-row">
-                    <label>Height</label>
-                    <input type="number" id="grid-height" value="20" min="3" max="50">
+                <h2>Grid Configuration</h2>
+                <div class="input-group">
+                    <div class="input-row">
+                        <label>Width</label>
+                        <input type="number" id="grid-width" value="20" min="3" max="50">
+                    </div>
+                    <div class="input-row">
+                        <label>Height</label>
+                        <input type="number" id="grid-height" value="20" min="3" max="50">
+                    </div>
                 </div>
                 <div class="obstacle-info">
-                    <span id="obstacle-count">0</span> obstacles
-                    <button id="clear-obstacles-btn" class="btn-small">Clear</button>
+                    <span class="tag"><span id="obstacle-count">0</span> obstacles</span>
+                    <button id="clear-obstacles-btn" class="btn-small">Clear All</button>
                 </div>
-                <p class="hint">Click grid cells to toggle obstacles</p>
+                <p class="hint">Click cells in the 3D view to place obstacles</p>
             </section>
 
-            <!-- Simulation Config -->
+            <!-- Physics Parameters -->
             <section class="panel-section">
-                <h2>Simulation Parameters</h2>
-                <div class="input-row">
-                    <label>Battery Capacity</label>
-                    <input type="range" id="battery-capacity" min="10" max="500" value="100" step="5">
-                    <span class="range-val" id="battery-capacity-val">100</span>
-                </div>
-                <div class="input-row">
-                    <label>Base Move Cost</label>
-                    <input type="range" id="base-move-cost" min="0.1" max="5" value="1.0" step="0.1">
-                    <span class="range-val" id="base-move-cost-val">1.0</span>
-                </div>
-                <div class="input-row">
-                    <label>Wind With (tailwind)</label>
-                    <input type="range" id="wind-with" min="0.1" max="2" value="0.5" step="0.05">
-                    <span class="range-val" id="wind-with-val">0.5</span>
-                </div>
-                <div class="input-row">
-                    <label>Wind Against (headwind)</label>
-                    <input type="range" id="wind-against" min="0.5" max="5" value="2.0" step="0.1">
-                    <span class="range-val" id="wind-against-val">2.0</span>
-                </div>
-                <div class="input-row">
-                    <label>Wind Cross</label>
-                    <input type="range" id="wind-cross" min="0.1" max="3" value="1.0" step="0.1">
-                    <span class="range-val" id="wind-cross-val">1.0</span>
-                </div>
-                <div class="input-row">
-                    <label>Payload Penalty Rate</label>
-                    <input type="range" id="payload-rate" min="0" max="0.5" value="0.10" step="0.01">
-                    <span class="range-val" id="payload-rate-val">0.10</span>
-                </div>
-                <div class="input-row">
-                    <label>Payload Increment (lbs)</label>
-                    <input type="range" id="payload-increment" min="1" max="20" value="5" step="1">
-                    <span class="range-val" id="payload-increment-val">5</span>
+                <h2>Physics Parameters</h2>
+                <div class="param-grid">
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Battery Capacity</label>
+                            <span class="param-val" id="battery-capacity-val">100</span>
+                        </div>
+                        <input type="range" id="battery-capacity" min="10" max="500" value="100" step="5">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Base Move Cost</label>
+                            <span class="param-val" id="base-move-cost-val">1.0</span>
+                        </div>
+                        <input type="range" id="base-move-cost" min="0.1" max="5" value="1.0" step="0.1">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Tailwind Multiplier</label>
+                            <span class="param-val" id="wind-with-val">0.50</span>
+                        </div>
+                        <input type="range" id="wind-with" min="0.1" max="2" value="0.5" step="0.05">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Headwind Multiplier</label>
+                            <span class="param-val" id="wind-against-val">2.0</span>
+                        </div>
+                        <input type="range" id="wind-against" min="0.5" max="5" value="2.0" step="0.1">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Crosswind Multiplier</label>
+                            <span class="param-val" id="wind-cross-val">1.0</span>
+                        </div>
+                        <input type="range" id="wind-cross" min="0.1" max="3" value="1.0" step="0.1">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Payload Penalty Rate</label>
+                            <span class="param-val" id="payload-rate-val">0.10</span>
+                        </div>
+                        <input type="range" id="payload-rate" min="0" max="0.5" value="0.10" step="0.01">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-header">
+                            <label>Payload Increment (lbs)</label>
+                            <span class="param-val" id="payload-increment-val">5</span>
+                        </div>
+                        <input type="range" id="payload-increment" min="1" max="20" value="5" step="1">
+                    </div>
                 </div>
             </section>
 
             <!-- Packages -->
             <section class="panel-section">
-                <h2>Packages</h2>
+                <h2>Package Manifest</h2>
                 <div id="packages-list"></div>
-                <button id="add-package-btn" class="btn btn-secondary">+ Add Package</button>
+                <button id="add-package-btn" class="btn btn-secondary btn-full">+ Add Package</button>
             </section>
 
             <!-- Weather -->
             <section class="panel-section">
                 <h2>Weather Forecast</h2>
                 <div id="weather-list"></div>
-                <button id="add-weather-btn" class="btn btn-secondary">+ Add Segment</button>
+                <button id="add-weather-btn" class="btn btn-secondary btn-full">+ Add Segment</button>
             </section>
 
-            <!-- Run -->
-            <section class="panel-section">
-                <button id="run-btn" class="btn btn-primary">Execute Mission</button>
+            <!-- Execute -->
+            <section class="panel-section panel-section-last">
+                <button id="run-btn" class="btn btn-primary">
+                    <span class="btn-icon">&#9654;</span> Execute Mission
+                </button>
                 <div id="status-message"></div>
             </section>
         </div>
 
-        <!-- 3D Viewport -->
+        <!-- 3D Viewport (center) -->
         <div id="viewport">
             <canvas id="render-canvas"></canvas>
 
@@ -113,19 +140,27 @@
                 <div id="hud-top">
                     <div class="hud-item">
                         <span class="hud-label">TICK</span>
-                        <span id="hud-tick">0 / 0</span>
+                        <span id="hud-tick" class="hud-value">0 / 0</span>
                     </div>
+                    <div class="hud-divider"></div>
                     <div class="hud-item">
                         <span class="hud-label">PACKAGE</span>
-                        <span id="hud-package">--</span>
+                        <span id="hud-package" class="hud-value">--</span>
                     </div>
+                    <div class="hud-divider"></div>
                     <div class="hud-item">
                         <span class="hud-label">PHASE</span>
-                        <span id="hud-phase">IDLE</span>
+                        <span id="hud-phase" class="hud-value hud-phase-idle">IDLE</span>
                     </div>
+                    <div class="hud-divider"></div>
                     <div class="hud-item">
                         <span class="hud-label">WIND</span>
-                        <span id="hud-wind">--</span>
+                        <span id="hud-wind" class="hud-value">--</span>
+                    </div>
+                    <div class="hud-divider"></div>
+                    <div class="hud-item">
+                        <span class="hud-label">COST</span>
+                        <span id="hud-total-cost" class="hud-value">0.00</span>
                     </div>
                 </div>
                 <div id="hud-battery">
@@ -133,11 +168,7 @@
                     <div id="battery-bar-container">
                         <div id="battery-bar-fill"></div>
                     </div>
-                    <span id="battery-percentage">100%</span>
-                </div>
-                <div id="hud-cost">
-                    <span class="hud-label">TOTAL COST</span>
-                    <span id="hud-total-cost">0.00</span>
+                    <span id="battery-percentage" class="hud-value">100%</span>
                 </div>
             </div>
 
@@ -145,7 +176,7 @@
             <div id="playback-controls">
                 <button id="btn-reset" title="Reset">&#x23EE;</button>
                 <button id="btn-step-back" title="Step Back">&#x23EA;</button>
-                <button id="btn-play-pause" title="Play/Pause">&#x25B6;</button>
+                <button id="btn-play-pause" title="Play/Pause" class="btn-play">&#x25B6;</button>
                 <button id="btn-step-forward" title="Step Forward">&#x23E9;</button>
                 <div class="speed-control">
                     <label>Speed</label>
@@ -154,11 +185,110 @@
                 </div>
             </div>
 
-            <!-- Results Panel (shown after simulation) -->
+            <!-- Results Panel -->
             <div id="results-panel" class="hidden">
-                <h3>Mission Summary</h3>
+                <div class="results-header">
+                    <h3>Mission Summary</h3>
+                    <button id="close-results" class="btn-close">&times;</button>
+                </div>
                 <div id="results-content"></div>
-                <button id="close-results" class="btn-small">Close</button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Algorithm & Advanced -->
+        <div id="right-panel">
+            <section class="panel-section">
+                <h2>Algorithm Configuration</h2>
+                <div class="algo-option">
+                    <div class="algo-header">
+                        <label>Delivery Ordering</label>
+                    </div>
+                    <select id="algo-ordering">
+                        <option value="auto">Auto (Permutation if &le;8, else Greedy)</option>
+                        <option value="permutation">Permutation Search (Optimal)</option>
+                        <option value="greedy">Greedy (Fast)</option>
+                    </select>
+                    <p class="algo-desc">Permutation search evaluates all n! orderings. Optimal for small manifests but O(n!) complexity.</p>
+                </div>
+                <div class="algo-option">
+                    <div class="algo-header">
+                        <label>Permutation Threshold</label>
+                        <span class="param-val" id="perm-threshold-val">8</span>
+                    </div>
+                    <input type="range" id="perm-threshold" min="2" max="10" value="8" step="1">
+                    <p class="algo-desc">Max packages for exhaustive search. 8! = 40,320 permutations. 10! = 3.6M.</p>
+                </div>
+                <div class="algo-option">
+                    <div class="algo-header">
+                        <label>Pathfinding</label>
+                    </div>
+                    <select id="algo-pathfinding">
+                        <option value="cost_aware">Wind-Aware A* (Recommended)</option>
+                        <option value="standard">Standard A* (Manhattan)</option>
+                    </select>
+                    <p class="algo-desc">Wind-aware A* accounts for wind cost at each tick. Standard A* minimizes distance only.</p>
+                </div>
+            </section>
+
+            <section class="panel-section">
+                <h2>Validation & Safety</h2>
+                <div class="toggle-row">
+                    <label>Simulator Cross-Check</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="toggle-crosscheck" checked>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </div>
+                <p class="algo-desc">Independent tick-by-tick validation. Recomputes all costs from scratch to catch planner bugs.</p>
+                <div class="toggle-row">
+                    <label>Strict Battery Safety</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="toggle-strict-battery" checked>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </div>
+                <p class="algo-desc">Abort mission if battery would drop below 0. Arriving at base with exactly 0 is allowed.</p>
+            </section>
+
+            <section class="panel-section">
+                <h2>Movement Rules</h2>
+                <div class="rules-grid">
+                    <div class="rule-card">
+                        <div class="rule-icon">&#8594;</div>
+                        <div class="rule-label">4-Directional</div>
+                        <div class="rule-desc">N / S / E / W only</div>
+                    </div>
+                    <div class="rule-card">
+                        <div class="rule-icon">&#9889;</div>
+                        <div class="rule-label">1 Tick / Move</div>
+                        <div class="rule-desc">Battery swap is instant</div>
+                    </div>
+                    <div class="rule-card">
+                        <div class="rule-icon">&#128230;</div>
+                        <div class="rule-label">1 Package</div>
+                        <div class="rule-desc">Single payload at a time</div>
+                    </div>
+                    <div class="rule-card">
+                        <div class="rule-icon">&#127968;</div>
+                        <div class="rule-label">Round Trip</div>
+                        <div class="rule-desc">Return to (0,0) each delivery</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel-section">
+                <h2>Cost Formula</h2>
+                <div class="formula-box">
+                    <code>cost = base &times; wind_mult &times; payload_mult</code>
+                    <div class="formula-detail">
+                        <span>payload_mult = 1.0 + floor(lbs / incr) &times; rate</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="panel-footer">
+                <span class="footer-text">Cenith Innovations</span>
+                <span class="footer-version">v1.0</span>
             </div>
         </div>
     </div>

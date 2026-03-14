@@ -82,14 +82,17 @@ export class UIManager {
             ['wind-cross', 'wind-cross-val', 1],
             ['payload-rate', 'payload-rate-val', 2],
             ['payload-increment', 'payload-increment-val', 0],
+            ['perm-threshold', 'perm-threshold-val', 0],
         ];
 
         for (const [sliderId, valId, decimals] of sliders) {
             const slider = document.getElementById(sliderId);
             const val = document.getElementById(valId);
-            slider.addEventListener('input', () => {
-                val.textContent = parseFloat(slider.value).toFixed(decimals);
-            });
+            if (slider && val) {
+                slider.addEventListener('input', () => {
+                    val.textContent = parseFloat(slider.value).toFixed(decimals);
+                });
+            }
         }
 
         // Speed slider
@@ -248,6 +251,16 @@ export class UIManager {
         };
     }
 
+    getAlgorithmConfig() {
+        return {
+            ordering: document.getElementById('algo-ordering').value,
+            permThreshold: parseInt(document.getElementById('perm-threshold').value),
+            pathfinding: document.getElementById('algo-pathfinding').value,
+            crossCheck: document.getElementById('toggle-crosscheck').checked,
+            strictBattery: document.getElementById('toggle-strict-battery').checked,
+        };
+    }
+
     setStatus(message, type) {
         const el = document.getElementById('status-message');
         el.textContent = message;
@@ -284,7 +297,9 @@ export class UIManager {
         document.getElementById('hud-tick').textContent = `${frame.tick} / ${frame.totalTicks}`;
         document.getElementById('hud-package').textContent =
             frame.packageId === '--' ? '--' : `${frame.packageId} (${frame.packageWeight} lbs)`;
-        document.getElementById('hud-phase').textContent = frame.phase;
+        const phaseEl = document.getElementById('hud-phase');
+        phaseEl.textContent = frame.phase;
+        phaseEl.className = 'hud-value hud-phase-' + frame.phase.toLowerCase();
         document.getElementById('hud-total-cost').textContent = frame.totalCost.toFixed(2);
 
         // Wind

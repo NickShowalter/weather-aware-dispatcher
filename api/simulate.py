@@ -1,23 +1,18 @@
-from __future__ import annotations
-
+from http.server import BaseHTTPRequestHandler
 import json
-import logging
+import sys
 import os
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from typing import Any
+
+# Add project root to path so weather_aware_dispatcher is importable
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from weather_aware_dispatcher.config import DEFAULT_CONFIG
 from weather_aware_dispatcher.core.delivery_planner import plan_deliveries
 from weather_aware_dispatcher.core.simulation_engine import simulate
 from weather_aware_dispatcher.io.input_loader import load_from_dict
 
-logger = logging.getLogger(__name__)
 
-WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public")
-
-
-def _serialize_result(plan, result, config) -> dict[str, Any]:
-    """Serialize simulation results to JSON-compatible dict."""
+def _serialize_result(plan, result, config):
     planned = []
     for d in plan.planned_deliveries:
         planned.append({
@@ -79,23 +74,8 @@ def _serialize_result(plan, result, config) -> dict[str, Any]:
     }
 
 
-class DispatcherHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=WEB_DIR, **kwargs)
-
+class handler(BaseHTTPRequestHandler):
     def do_POST(self):
-        if self.path == "/api/simulate":
-            self._handle_simulate()
-        else:
-            self.send_error(404)
-
-    def do_GET(self):
-        if self.path == "/api/defaults":
-            self._handle_defaults()
-        else:
-            super().do_GET()
-
-    def _handle_simulate(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length)
@@ -113,65 +93,21 @@ class DispatcherHandler(SimpleHTTPRequestHandler):
             self._json_response(200, response)
 
         except Exception as e:
-            logger.exception("Simulation error")
             self._json_response(500, {"success": False, "errors": [str(e)]})
 
-    def _handle_defaults(self):
-        cfg = DEFAULT_CONFIG
-        defaults = {
-            "config": {
-                "battery_capacity": cfg.battery_capacity,
-                "base_move_cost": cfg.base_move_cost,
-                "wind_with_multiplier": cfg.wind_with_multiplier,
-                "wind_against_multiplier": cfg.wind_against_multiplier,
-                "wind_cross_multiplier": cfg.wind_cross_multiplier,
-                "payload_penalty_rate": cfg.payload_penalty_rate,
-                "payload_penalty_increment_lbs": cfg.payload_penalty_increment_lbs,
-            },
-            "sample_input": {
-                "grid_width": 20,
-                "grid_height": 20,
-                "manifest": [
-                    {"id": "pkg_1", "destination": [18, 18], "weight_lbs": 5},
-                    {"id": "pkg_2", "destination": [2, 15], "weight_lbs": 10},
-                    {"id": "pkg_3", "destination": [15, 2], "weight_lbs": 2},
-                ],
-                "weather_forecast": [
-                    {"direction": "EAST", "start_tick": 0, "end_tick": 49},
-                    {"direction": "NORTH", "start_tick": 50, "end_tick": 99},
-                    {"direction": "WEST", "start_tick": 100, "end_tick": None},
-                ],
-                "obstacles": [[5, 5], [5, 6], [5, 7], [12, 15], [12, 16]],
-            },
-            "presets": {
-                "sample": "Default sample scenario",
-                "stress_low_battery": "Battery capacity reduced to 40",
-                "stress_heavy_wind": "Wind against multiplier set to 4.0",
-                "edge_small_grid": "5x5 grid with tight obstacles",
-                "edge_no_wind_penalty": "All wind multipliers set to 1.0",
-            },
-        }
-        self._json_response(200, defaults)
-
-    def _json_response(self, code: int, data: dict):
+    def _json_response(self, code, data):
         body = json.dumps(data).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, format, *args):
-        logger.info(format, *args)
-
-
-def run_server(port: int = 8080):
-    server = HTTPServer(("", port), DispatcherHandler)
-    print(f"Weather-Aware Dispatcher server running at http://localhost:{port}")
-    print("Press Ctrl+C to stop.")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down.")
-        server.server_close()
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()

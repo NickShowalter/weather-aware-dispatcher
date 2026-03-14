@@ -1,0 +1,17 @@
+{
+  "grid_width": 20,
+  "grid_height": 20,
+  "manifest": [
+    {"id": "pkg_1", "destination": [18, 18], "weight_lbs": 5},
+    {"id": "pkg_2", "destination": [2, 15], "weight_lbs": 10},
+    {"id": "pkg_3", "destination": [15, 2], "weight_lbs": 2}
+  ],
+  "weather_forecast": [
+    {"direction": "EAST", "start_tick": 0, "end_tick": 49},
+    {"direction": "NORTH", "start_tick": 50, "end_tick": 99},
+    {"direction": "WEST", "start_tick": 100, "end_tick": null}
+  ],
+  "obstacles": [
+    [5, 5], [5, 6], [5, 7], [12, 15], [12, 16]
+  ]
+}

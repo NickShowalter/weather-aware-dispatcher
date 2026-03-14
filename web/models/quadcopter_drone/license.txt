@@ -1,0 +1,11 @@
+Model Information:
+* title:	Quadcopter drone
+* source:	https://sketchfab.com/3d-models/quadcopter-drone-ca8f0f70a1014e77a6777dc248e9bf5a
+* author:	Annelida (https://sketchfab.com/Annelida)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Quadcopter drone" (https://sketchfab.com/3d-models/quadcopter-drone-ca8f0f70a1014e77a6777dc248e9bf5a) by Annelida (https://sketchfab.com/Annelida) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

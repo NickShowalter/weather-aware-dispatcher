@@ -3,6 +3,7 @@ from __future__ import annotations
 import heapq
 from typing import Optional
 
+from weather_aware_dispatcher.config import DEFAULT_CONFIG, SimulationConfig
 from weather_aware_dispatcher.models.coordinate import Coordinate
 from weather_aware_dispatcher.models.direction import DELTA_TO_DIRECTION
 from weather_aware_dispatcher.models.grid import Grid
@@ -20,7 +21,6 @@ def find_path(
         return None
 
     counter = 0
-    # (f_cost, counter, coord, parent)
     open_set: list[tuple[int, int, Coordinate, Optional[Coordinate]]] = []
     heapq.heappush(open_set, (start.manhattan_distance(end), counter, start, None))
     counter += 1
@@ -56,29 +56,22 @@ def find_path_cost_aware(
     start_tick: int,
     weather: WeatherForecast,
     weight_lbs: float,
+    config: Optional[SimulationConfig] = None,
 ) -> Optional[tuple[list[Coordinate], float]]:
-    """Time-aware A* where edge costs account for wind at each tick.
-
-    Node state is (coordinate, tick) since the same coordinate at different
-    ticks has different wind costs.
-
-    Returns (path, total_cost) or None.
-    """
+    """Time-aware A* where edge costs account for wind at each tick."""
+    cfg = config or DEFAULT_CONFIG
     if start == end:
         return ([start], 0.0)
     if not grid.is_valid(start) or not grid.is_valid(end):
         return None
 
     counter = 0
-    # Admissible heuristic: manhattan * 0.5 (minimum possible cost per move)
-    h = start.manhattan_distance(end) * 0.5
+    h = start.manhattan_distance(end) * cfg.wind_with_multiplier
 
-    # (f_cost, counter, coord, tick, g_cost, parent_coord, parent_tick)
     open_set: list[tuple[float, int, Coordinate, int, float, Optional[Coordinate], Optional[int]]] = []
     heapq.heappush(open_set, (h, counter, start, start_tick, 0.0, None, None))
     counter += 1
 
-    # Best known g-cost for (coord, tick)
     best: dict[tuple[Coordinate, int], float] = {(start, start_tick): 0.0}
     came_from: dict[tuple[Coordinate, int], Optional[tuple[Coordinate, int]]] = {}
 
@@ -97,14 +90,14 @@ def find_path_cost_aware(
         for neighbor in grid.passable_neighbors(current):
             delta = (neighbor.x - current.x, neighbor.y - current.y)
             direction = DELTA_TO_DIRECTION[delta]
-            edge_cost = move_cost(direction, wind, weight_lbs)
+            edge_cost = move_cost(direction, wind, weight_lbs, cfg)
             new_g = g + edge_cost
             new_tick = tick + 1
             neighbor_state = (neighbor, new_tick)
 
             if new_g < best.get(neighbor_state, float("inf")):
                 best[neighbor_state] = new_g
-                h = neighbor.manhattan_distance(end) * 0.5
+                h = neighbor.manhattan_distance(end) * cfg.wind_with_multiplier
                 heapq.heappush(
                     open_set,
                     (new_g + h, counter, neighbor, new_tick, new_g, current, tick),

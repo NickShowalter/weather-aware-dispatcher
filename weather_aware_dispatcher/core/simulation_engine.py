@@ -4,9 +4,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from weather_aware_dispatcher.config import BATTERY_CAPACITY, LAUNCH_PAD
+from weather_aware_dispatcher.config import DEFAULT_CONFIG, SimulationConfig
 from weather_aware_dispatcher.core.cost_calculator import direction_from_coords, move_cost
-from weather_aware_dispatcher.core.delivery_planner import DeliveryPlan, PlannedDelivery
+from weather_aware_dispatcher.core.delivery_planner import DeliveryPlan
 from weather_aware_dispatcher.models.coordinate import Coordinate
 from weather_aware_dispatcher.models.direction import Direction
 from weather_aware_dispatcher.models.weather import WeatherForecast
@@ -51,20 +51,23 @@ class SimulationResult:
     infeasible_packages: list[tuple[str, str]] = field(default_factory=list)
 
 
-def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
+def simulate(
+    plan: DeliveryPlan,
+    weather: WeatherForecast,
+    config: Optional[SimulationConfig] = None,
+) -> SimulationResult:
     """Execute the delivery plan tick-by-tick, independently recomputing all costs."""
+    cfg = config or DEFAULT_CONFIG
     result = SimulationResult(success=True)
 
-    # Record infeasible packages
     for pkg, reason in plan.infeasible_packages:
         result.infeasible_packages.append((pkg.id, reason))
 
-    battery = BATTERY_CAPACITY
+    battery = cfg.battery_capacity
     tick = 0
 
     for delivery in plan.planned_deliveries:
-        # Assert preconditions
-        if delivery.outbound_path[0] != LAUNCH_PAD:
+        if delivery.outbound_path[0] != cfg.launch_pad:
             result.success = False
             result.error = f"Delivery {delivery.package.id}: outbound doesn't start at launch pad"
             return result
@@ -76,7 +79,7 @@ def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
             a, b = delivery.outbound_path[i], delivery.outbound_path[i + 1]
             direction = direction_from_coords(a, b)
             wind = weather.wind_at_tick(tick)
-            cost = move_cost(direction, wind, weight)
+            cost = move_cost(direction, wind, weight, cfg)
             battery -= cost
             outbound_cost += cost
 
@@ -85,7 +88,7 @@ def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
                 direction=direction, wind=wind, cost=cost, battery_after=battery,
             ))
 
-            if battery < -1e-9:  # floating point tolerance
+            if battery < -1e-9:
                 result.success = False
                 result.error = (
                     f"Battery depleted at tick {tick}: {battery:.4f} remaining "
@@ -95,12 +98,11 @@ def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
 
             tick += 1
 
-        # Delivery event
         result.deliveries.append(DeliveryRecord(
             package_id=delivery.package.id,
             tick=tick,
             outbound_cost=outbound_cost,
-            return_cost=0.0,  # filled in after return leg
+            return_cost=0.0,
         ))
 
         # --- Return leg ---
@@ -109,7 +111,7 @@ def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
             a, b = delivery.return_path[i], delivery.return_path[i + 1]
             direction = direction_from_coords(a, b)
             wind = weather.wind_at_tick(tick)
-            cost = move_cost(direction, wind, 0.0)  # no payload on return
+            cost = move_cost(direction, wind, 0.0, cfg)
             battery -= cost
             return_cost += cost
 
@@ -128,27 +130,22 @@ def simulate(plan: DeliveryPlan, weather: WeatherForecast) -> SimulationResult:
 
             tick += 1
 
-        # Update delivery record with return cost
         result.deliveries[-1].return_cost = return_cost
 
-        # Cross-check with planner's estimates
-        sim_outbound = outbound_cost
-        sim_return = return_cost
-        if abs(sim_outbound - delivery.outbound_cost) > 0.001:
+        if abs(outbound_cost - delivery.outbound_cost) > 0.001:
             logger.warning(
                 "Cost mismatch for %s outbound: planner=%.4f, simulator=%.4f",
-                delivery.package.id, delivery.outbound_cost, sim_outbound,
+                delivery.package.id, delivery.outbound_cost, outbound_cost,
             )
-        if abs(sim_return - delivery.return_cost) > 0.001:
+        if abs(return_cost - delivery.return_cost) > 0.001:
             logger.warning(
                 "Cost mismatch for %s return: planner=%.4f, simulator=%.4f",
-                delivery.package.id, delivery.return_cost, sim_return,
+                delivery.package.id, delivery.return_cost, return_cost,
             )
 
-        # Battery swap at base
         result.recharges.append(RechargeRecord(tick=tick, battery_before_swap=battery))
         result.total_battery_consumed += outbound_cost + return_cost
-        battery = BATTERY_CAPACITY
+        battery = cfg.battery_capacity
 
     result.total_ticks = tick
     return result

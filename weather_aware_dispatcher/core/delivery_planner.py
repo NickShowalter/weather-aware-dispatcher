@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from weather_aware_dispatcher.config import BATTERY_CAPACITY, LAUNCH_PAD
+from weather_aware_dispatcher.config import DEFAULT_CONFIG, SimulationConfig
 from weather_aware_dispatcher.core.pathfinder import find_path_cost_aware
 from weather_aware_dispatcher.models.coordinate import Coordinate
 from weather_aware_dispatcher.models.grid import Grid
@@ -53,10 +53,11 @@ def _plan_round_trip(
     current_tick: int,
     grid: Grid,
     weather: WeatherForecast,
+    config: SimulationConfig,
 ) -> Optional[PlannedDelivery]:
     """Plan a single round trip for a package. Returns None if infeasible."""
     outbound = find_path_cost_aware(
-        LAUNCH_PAD, package.destination, grid, current_tick, weather, package.weight_lbs
+        config.launch_pad, package.destination, grid, current_tick, weather, package.weight_lbs, config
     )
     if outbound is None:
         return None
@@ -66,7 +67,7 @@ def _plan_round_trip(
     arrival_tick = current_tick + outbound_ticks
 
     return_result = find_path_cost_aware(
-        package.destination, LAUNCH_PAD, grid, arrival_tick, weather, 0.0
+        package.destination, config.launch_pad, grid, arrival_tick, weather, 0.0, config
     )
     if return_result is None:
         return None
@@ -75,7 +76,7 @@ def _plan_round_trip(
     return_ticks = len(return_path) - 1
     total_cost = outbound_cost + return_cost
 
-    if total_cost > BATTERY_CAPACITY:
+    if total_cost > config.battery_capacity:
         return None
 
     end_tick = arrival_tick + return_ticks
@@ -94,6 +95,7 @@ def _simulate_ordering(
     packages: list[Package],
     grid: Grid,
     weather: WeatherForecast,
+    config: SimulationConfig,
 ) -> Optional[tuple[list[PlannedDelivery], float]]:
     """Simulate a specific ordering. Returns (deliveries, total_cost) or None if any is infeasible."""
     deliveries: list[PlannedDelivery] = []
@@ -101,7 +103,7 @@ def _simulate_ordering(
     total_cost = 0.0
 
     for pkg in packages:
-        delivery = _plan_round_trip(pkg, current_tick, grid, weather)
+        delivery = _plan_round_trip(pkg, current_tick, grid, weather, config)
         if delivery is None:
             return None
         deliveries.append(delivery)
@@ -115,39 +117,38 @@ def plan_deliveries(
     packages: list[Package],
     grid: Grid,
     weather: WeatherForecast,
+    config: Optional[SimulationConfig] = None,
 ) -> DeliveryPlan:
     """Plan delivery order for all packages."""
+    cfg = config or DEFAULT_CONFIG
+
     if not packages:
         return DeliveryPlan()
 
-    # Separate packages whose round trip is always infeasible (even at tick 0)
     feasible: list[Package] = []
     infeasible: list[tuple[Package, str]] = []
 
     for pkg in packages:
-        delivery = _plan_round_trip(pkg, 0, grid, weather)
+        delivery = _plan_round_trip(pkg, 0, grid, weather, cfg)
         if delivery is None:
-            # Check if it's unreachable vs. too expensive
-            from weather_aware_dispatcher.core.pathfinder import find_path_cost_aware
             outbound = find_path_cost_aware(
-                LAUNCH_PAD, pkg.destination, grid, 0, weather, pkg.weight_lbs
+                cfg.launch_pad, pkg.destination, grid, 0, weather, pkg.weight_lbs, cfg
             )
             if outbound is None:
-                infeasible.append((pkg, f"No path from {LAUNCH_PAD} to {pkg.destination}"))
+                infeasible.append((pkg, f"No path from {cfg.launch_pad} to {pkg.destination}"))
             else:
-                infeasible.append((pkg, f"Round trip cost exceeds battery capacity of {BATTERY_CAPACITY}"))
+                infeasible.append((pkg, f"Round trip cost exceeds battery capacity of {cfg.battery_capacity}"))
         else:
             feasible.append(pkg)
 
     if not feasible:
         return DeliveryPlan(infeasible_packages=infeasible)
 
-    # Try permutation optimization for small manifests
     if len(feasible) <= PERMUTATION_THRESHOLD:
         best_deliveries, best_cost = None, float("inf")
 
         for perm in itertools.permutations(feasible):
-            result = _simulate_ordering(list(perm), grid, weather)
+            result = _simulate_ordering(list(perm), grid, weather, cfg)
             if result is not None:
                 deliveries, cost = result
                 if cost < best_cost:
@@ -164,8 +165,7 @@ def plan_deliveries(
                 infeasible_packages=infeasible,
             )
 
-    # Fallback: greedy
-    return _greedy_plan(feasible, infeasible, grid, weather)
+    return _greedy_plan(feasible, infeasible, grid, weather, cfg)
 
 
 def _greedy_plan(
@@ -173,6 +173,7 @@ def _greedy_plan(
     infeasible: list[tuple[Package, str]],
     grid: Grid,
     weather: WeatherForecast,
+    config: SimulationConfig,
 ) -> DeliveryPlan:
     remaining = list(remaining)
     planned: list[PlannedDelivery] = []
@@ -183,7 +184,7 @@ def _greedy_plan(
         best_idx: int = -1
 
         for i, pkg in enumerate(remaining):
-            delivery = _plan_round_trip(pkg, current_tick, grid, weather)
+            delivery = _plan_round_trip(pkg, current_tick, grid, weather, config)
             if delivery is None:
                 continue
             if best_delivery is None or delivery.round_trip_cost < best_delivery.round_trip_cost:
@@ -191,7 +192,6 @@ def _greedy_plan(
                 best_idx = i
 
         if best_delivery is None:
-            # All remaining are infeasible at current tick
             for pkg in remaining:
                 infeasible.append((pkg, f"Infeasible at tick {current_tick}"))
             break

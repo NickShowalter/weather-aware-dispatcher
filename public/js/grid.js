@@ -90,9 +90,9 @@ export class GridRenderer {
         }
 
         const obsMat = new THREE.MeshStandardMaterial({
-            color: 0x444466,
-            roughness: 0.7,
-            metalness: 0.3,
+            color: 0xffffff,
+            roughness: 0.4,
+            metalness: 0.1,
         });
 
         for (const key of this.obstacles) {

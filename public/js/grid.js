@@ -17,6 +17,9 @@ export class GridRenderer {
         this.obstacles = new Set();
         this.onObstacleToggle = null;
 
+        this.pathGroup = new THREE.Group();
+        this.group.add(this.pathGroup);
+
         this.width = 20;
         this.height = 20;
     }
@@ -210,5 +213,65 @@ export class GridRenderer {
 
     getObstacleList() {
         return Array.from(this.obstacles).map(k => k.split(',').map(Number));
+    }
+
+    renderPaths(plannedDeliveries) {
+        this.clearPaths();
+
+        const colors = [0xc9a84c, 0x5dade2, 0x2ecc71, 0xe74c3c, 0x9b59b6, 0xe67e22];
+
+        plannedDeliveries.forEach((delivery, i) => {
+            const color = colors[i % colors.length];
+            const outboundMat = new THREE.LineBasicMaterial({
+                color,
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.7,
+            });
+            const returnMat = new THREE.LineBasicMaterial({
+                color,
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.35,
+            });
+
+            // Outbound path (solid)
+            if (delivery.outbound_path && delivery.outbound_path.length > 1) {
+                const points = delivery.outbound_path.map(
+                    ([x, y]) => new THREE.Vector3(x, 0.04, y)
+                );
+                const geo = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geo, outboundMat);
+                this.pathGroup.add(line);
+
+                // Small dots at each waypoint
+                const dotGeo = new THREE.SphereGeometry(0.06, 8, 8);
+                const dotMat = new THREE.MeshBasicMaterial({ color });
+                for (let j = 1; j < points.length - 1; j++) {
+                    const dot = new THREE.Mesh(dotGeo, dotMat);
+                    dot.position.copy(points[j]);
+                    this.pathGroup.add(dot);
+                }
+            }
+
+            // Return path (dimmer)
+            if (delivery.return_path && delivery.return_path.length > 1) {
+                const points = delivery.return_path.map(
+                    ([x, y]) => new THREE.Vector3(x, 0.03, y)
+                );
+                const geo = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geo, returnMat);
+                this.pathGroup.add(line);
+            }
+        });
+    }
+
+    clearPaths() {
+        while (this.pathGroup.children.length) {
+            const child = this.pathGroup.children[0];
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+            this.pathGroup.remove(child);
+        }
     }
 }

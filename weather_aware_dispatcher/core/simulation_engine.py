@@ -13,6 +13,8 @@ from weather_aware_dispatcher.models.weather import WeatherForecast
 
 logger = logging.getLogger(__name__)
 
+COST_MISMATCH_TOLERANCE = 0.001
+
 
 @dataclass
 class MoveRecord:
@@ -40,6 +42,14 @@ class RechargeRecord:
 
 
 @dataclass
+class CostMismatch:
+    package_id: str
+    leg: str  # "outbound" or "return"
+    planner_cost: float
+    simulator_cost: float
+
+
+@dataclass
 class SimulationResult:
     success: bool
     moves: list[MoveRecord] = field(default_factory=list)
@@ -49,14 +59,22 @@ class SimulationResult:
     total_ticks: int = 0
     error: Optional[str] = None
     infeasible_packages: list[tuple[str, str]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    cost_mismatches: list[CostMismatch] = field(default_factory=list)
 
 
 def simulate(
     plan: DeliveryPlan,
     weather: WeatherForecast,
     config: Optional[SimulationConfig] = None,
+    cross_check: bool = True,
 ) -> SimulationResult:
-    """Execute the delivery plan tick-by-tick, independently recomputing all costs."""
+    """Execute the delivery plan tick-by-tick, independently recomputing all costs.
+
+    Args:
+        cross_check: If True, abort delivery on cost mismatch with planner.
+                     If False, log warnings but continue.
+    """
     cfg = config or DEFAULT_CONFIG
     result = SimulationResult(success=True)
 
@@ -132,16 +150,49 @@ def simulate(
 
         result.deliveries[-1].return_cost = return_cost
 
-        if abs(outbound_cost - delivery.outbound_cost) > 0.001:
-            logger.warning(
-                "Cost mismatch for %s outbound: planner=%.4f, simulator=%.4f",
-                delivery.package.id, delivery.outbound_cost, outbound_cost,
+        # --- Cross-check planner costs ---
+        outbound_diff = abs(outbound_cost - delivery.outbound_cost)
+        return_diff = abs(return_cost - delivery.return_cost)
+
+        if outbound_diff > COST_MISMATCH_TOLERANCE:
+            mismatch = CostMismatch(
+                package_id=delivery.package.id,
+                leg="outbound",
+                planner_cost=delivery.outbound_cost,
+                simulator_cost=outbound_cost,
             )
-        if abs(return_cost - delivery.return_cost) > 0.001:
-            logger.warning(
-                "Cost mismatch for %s return: planner=%.4f, simulator=%.4f",
-                delivery.package.id, delivery.return_cost, return_cost,
+            result.cost_mismatches.append(mismatch)
+            msg = (
+                f"Cost mismatch for {delivery.package.id} outbound: "
+                f"planner={delivery.outbound_cost:.4f}, simulator={outbound_cost:.4f}"
             )
+            logger.warning(msg)
+            result.warnings.append(msg)
+
+            if cross_check:
+                result.success = False
+                result.error = f"Cross-check failure: {msg}. Aborting to prevent unsafe flight."
+                return result
+
+        if return_diff > COST_MISMATCH_TOLERANCE:
+            mismatch = CostMismatch(
+                package_id=delivery.package.id,
+                leg="return",
+                planner_cost=delivery.return_cost,
+                simulator_cost=return_cost,
+            )
+            result.cost_mismatches.append(mismatch)
+            msg = (
+                f"Cost mismatch for {delivery.package.id} return: "
+                f"planner={delivery.return_cost:.4f}, simulator={return_cost:.4f}"
+            )
+            logger.warning(msg)
+            result.warnings.append(msg)
+
+            if cross_check:
+                result.success = False
+                result.error = f"Cross-check failure: {msg}. Aborting to prevent unsafe flight."
+                return result
 
         result.recharges.append(RechargeRecord(tick=tick, battery_before_swap=battery))
         result.total_battery_consumed += outbound_cost + return_cost

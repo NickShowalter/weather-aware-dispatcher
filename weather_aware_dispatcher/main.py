@@ -43,10 +43,16 @@ def main(argv: list[str] | None = None) -> int:
     data = load_result.data
 
     # Plan deliveries
-    plan = plan_deliveries(data.packages, data.grid, data.weather, data.config)
+    algo = data.algorithm
+    plan = plan_deliveries(
+        data.packages, data.grid, data.weather, data.config,
+        ordering=algo.ordering,
+        perm_threshold=algo.perm_threshold,
+        pathfinding_mode=algo.pathfinding,
+    )
 
     # Simulate plan
-    result = simulate(plan, data.weather, data.config)
+    result = simulate(plan, data.weather, data.config, cross_check=algo.cross_check)
 
     # Output
     print(format_result(plan, result))

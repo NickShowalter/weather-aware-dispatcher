@@ -21,11 +21,27 @@ const animation = new AnimationController(drone, gridRenderer, (frame) => {
 const defaultPreset = ui.loadPreset('sample');
 rebuildGrid();
 
-// Raycaster for obstacle clicking
+// --- Obstacle clicking with drag detection ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+let mouseDownPos = null;
+const CLICK_THRESHOLD = 5; // pixels — if mouse moves more than this, it's a drag
 
-canvas.addEventListener('click', (e) => {
+canvas.addEventListener('mousedown', (e) => {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    if (!mouseDownPos) return;
+
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    mouseDownPos = null;
+
+    // Only toggle obstacle if it was a click, not a drag/orbit
+    if (dist > CLICK_THRESHOLD) return;
+
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -50,6 +66,7 @@ document.getElementById('load-preset-btn').addEventListener('click', () => {
     const data = ui.loadPreset(preset);
     if (data) {
         rebuildGrid();
+        gridRenderer.clearPaths();
         animation.reset();
         document.getElementById('results-panel').classList.add('hidden');
     }
@@ -86,6 +103,10 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         const obstacles = gridRenderer.getObstacleList();
         const scenario = ui.collectScenario(obstacles);
 
+        // Include algorithm config in the scenario
+        const algoConfig = ui.getAlgorithmConfig();
+        scenario.algorithm = algoConfig;
+
         const result = await runSimulation(scenario);
 
         if (!result.success && result.errors) {
@@ -104,11 +125,16 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         // Rebuild grid with updated data
         rebuildGrid();
 
+        // Render planned paths on the grid
+        if (result.planned_deliveries) {
+            gridRenderer.renderPaths(result.planned_deliveries);
+        }
+
         // Load animation
         const batteryCapacity = scenario.config.battery_capacity;
         animation.load(result, ui.packages, batteryCapacity);
 
-        // Show results panel
+        // Show results panel — include warnings if any
         ui.showResults(result);
 
     } catch (err) {

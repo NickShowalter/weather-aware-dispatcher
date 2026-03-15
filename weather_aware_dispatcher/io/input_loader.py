@@ -17,11 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class AlgorithmConfig:
+    ordering: str = "auto"          # "auto", "permutation", "greedy"
+    perm_threshold: int = 8         # max packages for permutation search
+    pathfinding: str = "cost_aware" # "cost_aware", "standard"
+    cross_check: bool = True        # simulator cross-checks planner costs
+    strict_battery: bool = True     # abort on battery depletion
+
+
+@dataclass
 class InputData:
     grid: Grid
     packages: list[Package]
     weather: WeatherForecast
     config: SimulationConfig = DEFAULT_CONFIG
+    algorithm: AlgorithmConfig = None
+
+    def __post_init__(self):
+        if self.algorithm is None:
+            self.algorithm = AlgorithmConfig()
 
 
 @dataclass
@@ -95,6 +109,25 @@ def load_from_dict(raw: dict) -> LoadResult:
     if "config" in raw:
         config, config_errors = parse_config(raw["config"])
         errors.extend(config_errors)
+
+    # --- Algorithm config (optional) ---
+    algo = AlgorithmConfig()
+    if "algorithm" in raw:
+        algo_raw = raw["algorithm"]
+        ordering = algo_raw.get("ordering", "auto")
+        if ordering not in ("auto", "permutation", "greedy"):
+            errors.append(f"algorithm.ordering must be 'auto', 'permutation', or 'greedy', got: '{ordering}'")
+        pathfinding = algo_raw.get("pathfinding", "cost_aware")
+        if pathfinding not in ("cost_aware", "standard"):
+            errors.append(f"algorithm.pathfinding must be 'cost_aware' or 'standard', got: '{pathfinding}'")
+        perm_threshold = algo_raw.get("permThreshold", algo_raw.get("perm_threshold", 8))
+        algo = AlgorithmConfig(
+            ordering=ordering,
+            perm_threshold=int(perm_threshold),
+            pathfinding=pathfinding,
+            cross_check=algo_raw.get("crossCheck", algo_raw.get("cross_check", True)),
+            strict_battery=algo_raw.get("strictBattery", algo_raw.get("strict_battery", True)),
+        )
 
     # --- Structural checks ---
     required_keys = ["grid_width", "grid_height", "manifest", "weather_forecast", "obstacles"]
@@ -210,4 +243,4 @@ def load_from_dict(raw: dict) -> LoadResult:
     if errors:
         return LoadResult(None, errors)
 
-    return LoadResult(InputData(grid=grid, packages=packages, weather=weather, config=config), [])
+    return LoadResult(InputData(grid=grid, packages=packages, weather=weather, config=config, algorithm=algo), [])

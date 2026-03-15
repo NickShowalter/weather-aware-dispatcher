@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from weather_aware_dispatcher.config import DEFAULT_CONFIG, SimulationConfig
-from weather_aware_dispatcher.core.pathfinder import find_path_cost_aware
+from weather_aware_dispatcher.core.pathfinder import find_path, find_path_cost_aware
+from weather_aware_dispatcher.core.cost_calculator import estimate_path_cost
 from weather_aware_dispatcher.models.coordinate import Coordinate
 from weather_aware_dispatcher.models.grid import Grid
 from weather_aware_dispatcher.models.package import Package
@@ -48,16 +49,39 @@ class DeliveryPlan:
         return self.planned_deliveries[-1].end_tick
 
 
+def _find_path_for_mode(
+    start: Coordinate,
+    end: Coordinate,
+    grid: Grid,
+    start_tick: int,
+    weather: WeatherForecast,
+    weight_lbs: float,
+    config: SimulationConfig,
+    pathfinding_mode: str,
+) -> Optional[tuple[list[Coordinate], float]]:
+    """Find path using the specified algorithm mode."""
+    if pathfinding_mode == "standard":
+        path = find_path(start, end, grid)
+        if path is None:
+            return None
+        cost = estimate_path_cost(path, start_tick, weather, weight_lbs, config)
+        return (path, cost)
+    else:
+        return find_path_cost_aware(start, end, grid, start_tick, weather, weight_lbs, config)
+
+
 def _plan_round_trip(
     package: Package,
     current_tick: int,
     grid: Grid,
     weather: WeatherForecast,
     config: SimulationConfig,
+    pathfinding_mode: str = "cost_aware",
 ) -> Optional[PlannedDelivery]:
     """Plan a single round trip for a package. Returns None if infeasible."""
-    outbound = find_path_cost_aware(
-        config.launch_pad, package.destination, grid, current_tick, weather, package.weight_lbs, config
+    outbound = _find_path_for_mode(
+        config.launch_pad, package.destination, grid, current_tick, weather,
+        package.weight_lbs, config, pathfinding_mode
     )
     if outbound is None:
         return None
@@ -66,8 +90,9 @@ def _plan_round_trip(
     outbound_ticks = len(outbound_path) - 1
     arrival_tick = current_tick + outbound_ticks
 
-    return_result = find_path_cost_aware(
-        package.destination, config.launch_pad, grid, arrival_tick, weather, 0.0, config
+    return_result = _find_path_for_mode(
+        package.destination, config.launch_pad, grid, arrival_tick, weather,
+        0.0, config, pathfinding_mode
     )
     if return_result is None:
         return None
@@ -96,6 +121,7 @@ def _simulate_ordering(
     grid: Grid,
     weather: WeatherForecast,
     config: SimulationConfig,
+    pathfinding_mode: str = "cost_aware",
 ) -> Optional[tuple[list[PlannedDelivery], float]]:
     """Simulate a specific ordering. Returns (deliveries, total_cost) or None if any is infeasible."""
     deliveries: list[PlannedDelivery] = []
@@ -103,7 +129,7 @@ def _simulate_ordering(
     total_cost = 0.0
 
     for pkg in packages:
-        delivery = _plan_round_trip(pkg, current_tick, grid, weather, config)
+        delivery = _plan_round_trip(pkg, current_tick, grid, weather, config, pathfinding_mode)
         if delivery is None:
             return None
         deliveries.append(delivery)
@@ -118,8 +144,17 @@ def plan_deliveries(
     grid: Grid,
     weather: WeatherForecast,
     config: Optional[SimulationConfig] = None,
+    ordering: str = "auto",
+    perm_threshold: int = PERMUTATION_THRESHOLD,
+    pathfinding_mode: str = "cost_aware",
 ) -> DeliveryPlan:
-    """Plan delivery order for all packages."""
+    """Plan delivery order for all packages.
+
+    Args:
+        ordering: "auto" (permutation if small, else greedy), "permutation", or "greedy"
+        perm_threshold: max packages for permutation search (only used with "auto")
+        pathfinding_mode: "cost_aware" (wind-aware A*) or "standard" (basic A*)
+    """
     cfg = config or DEFAULT_CONFIG
 
     if not packages:
@@ -129,10 +164,11 @@ def plan_deliveries(
     infeasible: list[tuple[Package, str]] = []
 
     for pkg in packages:
-        delivery = _plan_round_trip(pkg, 0, grid, weather, cfg)
+        delivery = _plan_round_trip(pkg, 0, grid, weather, cfg, pathfinding_mode)
         if delivery is None:
-            outbound = find_path_cost_aware(
-                cfg.launch_pad, pkg.destination, grid, 0, weather, pkg.weight_lbs, cfg
+            outbound = _find_path_for_mode(
+                cfg.launch_pad, pkg.destination, grid, 0, weather,
+                pkg.weight_lbs, cfg, pathfinding_mode
             )
             if outbound is None:
                 infeasible.append((pkg, f"No path from {cfg.launch_pad} to {pkg.destination}"))
@@ -144,11 +180,16 @@ def plan_deliveries(
     if not feasible:
         return DeliveryPlan(infeasible_packages=infeasible)
 
-    if len(feasible) <= PERMUTATION_THRESHOLD:
+    use_permutation = (
+        ordering == "permutation"
+        or (ordering == "auto" and len(feasible) <= perm_threshold)
+    )
+
+    if use_permutation and ordering != "greedy":
         best_deliveries, best_cost = None, float("inf")
 
         for perm in itertools.permutations(feasible):
-            result = _simulate_ordering(list(perm), grid, weather, cfg)
+            result = _simulate_ordering(list(perm), grid, weather, cfg, pathfinding_mode)
             if result is not None:
                 deliveries, cost = result
                 if cost < best_cost:
@@ -165,7 +206,7 @@ def plan_deliveries(
                 infeasible_packages=infeasible,
             )
 
-    return _greedy_plan(feasible, infeasible, grid, weather, cfg)
+    return _greedy_plan(feasible, infeasible, grid, weather, cfg, pathfinding_mode)
 
 
 def _greedy_plan(
@@ -174,6 +215,7 @@ def _greedy_plan(
     grid: Grid,
     weather: WeatherForecast,
     config: SimulationConfig,
+    pathfinding_mode: str = "cost_aware",
 ) -> DeliveryPlan:
     remaining = list(remaining)
     planned: list[PlannedDelivery] = []
@@ -184,7 +226,7 @@ def _greedy_plan(
         best_idx: int = -1
 
         for i, pkg in enumerate(remaining):
-            delivery = _plan_round_trip(pkg, current_tick, grid, weather, config)
+            delivery = _plan_round_trip(pkg, current_tick, grid, weather, config, pathfinding_mode)
             if delivery is None:
                 continue
             if best_delivery is None or delivery.round_trip_cost < best_delivery.round_trip_cost:

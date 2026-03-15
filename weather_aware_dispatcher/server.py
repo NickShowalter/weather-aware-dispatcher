@@ -76,6 +76,7 @@ def _serialize_result(plan, result, config) -> dict[str, Any]:
         "total_battery_consumed": round(result.total_battery_consumed, 4),
         "total_ticks": result.total_ticks,
         "battery_capacity": config.battery_capacity,
+        "warnings": getattr(result, 'warnings', []),
     }
 
 
@@ -107,8 +108,14 @@ class DispatcherHandler(SimpleHTTPRequestHandler):
                 return
 
             data = load_result.data
-            plan = plan_deliveries(data.packages, data.grid, data.weather, data.config)
-            result = simulate(plan, data.weather, data.config)
+            algo = data.algorithm
+            plan = plan_deliveries(
+                data.packages, data.grid, data.weather, data.config,
+                ordering=algo.ordering,
+                perm_threshold=algo.perm_threshold,
+                pathfinding_mode=algo.pathfinding,
+            )
+            result = simulate(plan, data.weather, data.config, cross_check=algo.cross_check)
             response = _serialize_result(plan, result, data.config)
             self._json_response(200, response)
 

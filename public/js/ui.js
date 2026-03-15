@@ -282,9 +282,19 @@ export class UIManager {
         `;
 
         if (result.infeasible_packages && result.infeasible_packages.length > 0) {
-            html += '<div style="margin-top:8px; color:#ff4444;">';
+            html += '<div style="margin-top:8px; color:#e74c3c;">';
+            html += '<div style="font-weight:600; margin-bottom:4px;">Infeasible:</div>';
             for (const inf of result.infeasible_packages) {
-                html += `<div>${inf.package_id}: ${inf.reason}</div>`;
+                html += `<div style="font-size:11px;">${inf.package_id}: ${inf.reason}</div>`;
+            }
+            html += '</div>';
+        }
+
+        if (result.warnings && result.warnings.length > 0) {
+            html += '<div style="margin-top:8px; color:#e67e22;">';
+            html += '<div style="font-weight:600; margin-bottom:4px;">Warnings:</div>';
+            for (const w of result.warnings) {
+                html += `<div style="font-size:11px;">${w}</div>`;
             }
             html += '</div>';
         }

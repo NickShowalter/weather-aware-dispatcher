@@ -19,6 +19,7 @@ const animation = new AnimationController(drone, gridRenderer, (frame) => {
 
 // Load default preset
 const defaultPreset = ui.loadPreset('sample');
+loadObstaclesFromPreset(defaultPreset);
 rebuildGrid();
 
 // --- Obstacle clicking with drag detection ---
@@ -65,6 +66,7 @@ document.getElementById('load-preset-btn').addEventListener('click', () => {
     const preset = document.getElementById('preset-select').value;
     const data = ui.loadPreset(preset);
     if (data) {
+        loadObstaclesFromPreset(data);
         rebuildGrid();
         gridRenderer.clearPaths();
         animation.reset();
@@ -177,6 +179,14 @@ document.getElementById('close-results').addEventListener('click', () => {
 });
 
 // --- Helpers ---
+
+function loadObstaclesFromPreset(preset) {
+    if (!preset || !preset.obstacles) return;
+    gridRenderer.obstacles.clear();
+    for (const [x, y] of preset.obstacles) {
+        gridRenderer.obstacles.add(`${x},${y}`);
+    }
+}
 
 function rebuildGrid() {
     const w = parseInt(document.getElementById('grid-width').value);
